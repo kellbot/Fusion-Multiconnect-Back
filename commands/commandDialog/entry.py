@@ -128,65 +128,80 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
 # This event handler is called when the user clicks the OK button in the command dialog or 
 # is immediately called after the created event not command inputs were created for the dialog.
 def command_execute(args: adsk.core.CommandEventArgs):
+    generate_multiconnect_back(args)
 
-    # Get a reference to your command's inputs.
-    inputs = args.command.commandInputs
-    width_value_input: adsk.core.TextBoxCommandInput = inputs.itemById('width_value_input')
-    height_value_input: adsk.core.ValueCommandInput = inputs.itemById('height_value_input')
-    tool_only_input = inputs.itemById('tools_only')
-
-    backHeight = max(2.5, height_value_input.value)
-    backWidth = max(width_value_input.value, distanceBetweenSlots)
-    slotCount = math.floor(backWidth/distanceBetweenSlots)
-    backThickness = 0.65
+def command_preview(args: adsk.core.CommandEventArgs):
+    futil.log(f'{CMD_NAME} Command Preview Event')
+    args.isValidResult = generate_multiconnect_back(args)
 
 
 
-    slot_tool = create_slot(backHeight)
+def generate_multiconnect_back(args: adsk.core.CommandEventArgs):
+    try:
+        # Get a reference to your command's inputs.
+        inputs = args.command.commandInputs
+        width_value_input: adsk.core.TextBoxCommandInput = inputs.itemById('width_value_input')
+        height_value_input: adsk.core.ValueCommandInput = inputs.itemById('height_value_input')
+        tool_only_input = inputs.itemById('tools_only')
+
+        backHeight = max(2.5, height_value_input.value)
+        backWidth = max(width_value_input.value, distanceBetweenSlots)
+        slotCount = math.floor(backWidth/distanceBetweenSlots)
+        backThickness = 0.65
+
+
+
+        slot_tool = create_slot(backHeight)
+        
+        # Move the tool to the middle slot location
+        bodies = adsk.core.ObjectCollection.create()
+        bodies.add(slot_tool)
+
+        # offset to the edge location, because symmetrical patterns aren't working correctly in the API
+        slotXShift = (distanceBetweenSlots * ( 1 - slotCount))/2
     
-    # Move the tool to the middle slot location
-    bodies = adsk.core.ObjectCollection.create()
-    bodies.add(slot_tool)
+        vector = adsk.core.Vector3D.create(slotXShift, backThickness - 0.5, backHeight - 1.3)
+        transform = adsk.core.Matrix3D.create()
+        transform.translation = vector
 
-    # offset to the edge location, because symmetrical patterns aren't working correctly in the API
-    slotXShift = (distanceBetweenSlots * ( 1 - slotCount))/2
- 
-    vector = adsk.core.Vector3D.create(slotXShift, backThickness - 0.5, backHeight - 1.3)
-    transform = adsk.core.Matrix3D.create()
-    transform.translation = vector
+        moveFeats = features.moveFeatures
+        moveFeatureInput = moveFeats.createInput2(bodies)
+        moveFeatureInput.defineAsFreeMove(transform)
+        moveFeats.add(moveFeatureInput)
 
-    moveFeats = features.moveFeatures
-    moveFeatureInput = moveFeats.createInput2(bodies)
-    moveFeatureInput.defineAsFreeMove(transform)
-    moveFeats.add(moveFeatureInput)
+        #  Make more slots
+        rectangularPatterns = features.rectangularPatternFeatures
+        patternInput = rectangularPatterns.createInput(
+            bodies, 
+            root.xConstructionAxis,
+            adsk.core.ValueInput.createByReal(slotCount),
+            adsk.core.ValueInput.createByReal(distanceBetweenSlots), 
+            adsk.fusion.PatternDistanceType.SpacingPatternDistanceType)
 
-    #  Make more slots
-    rectangularPatterns = features.rectangularPatternFeatures
-    patternInput = rectangularPatterns.createInput(
-        bodies, 
-        root.xConstructionAxis,
-        adsk.core.ValueInput.createByReal(slotCount),
-        adsk.core.ValueInput.createByReal(distanceBetweenSlots), 
-        adsk.fusion.PatternDistanceType.SpacingPatternDistanceType)
-
-    slotPattern = rectangularPatterns.add(patternInput)
-    slotBodies = adsk.core.ObjectCollection.create()
-    for body in slotPattern.bodies:
-            slotBodies.add(body)
+        slotPattern = rectangularPatterns.add(patternInput)
+        slotBodies = adsk.core.ObjectCollection.create()
+        for body in slotPattern.bodies:
+                slotBodies.add(body)
 
 
-    if not tool_only_input.value:
-    # Make the overall shape
-        back = create_back_cube(backWidth, backThickness, backHeight)
+        if not tool_only_input.value:
+        # Make the overall shape
+            back = create_back_cube(backWidth, backThickness, backHeight)
 
-        # Subtract the slot tool
-        combineFeatures = features.combineFeatures
+            # Subtract the slot tool
+            combineFeatures = features.combineFeatures
 
-        input: adsk.fusion.CombineFeatureInput = combineFeatures.createInput(back, slotBodies)
-        input.isNewComponent = False
-        input.isKeepToolBodies = False
-        input.operation = adsk.fusion.FeatureOperations.CutFeatureOperation
-        combineFeature = combineFeatures.add(input)
+            input: adsk.fusion.CombineFeatureInput = combineFeatures.createInput(back, slotBodies)
+            input.isNewComponent = False
+            input.isKeepToolBodies = False
+            input.operation = adsk.fusion.FeatureOperations.CutFeatureOperation
+            combineFeature = combineFeatures.add(input)
+    except Exception as err:
+        args.executeFailed = True
+        args.executeFailedMessage = getErrorMessage()
+        futil.log(f'{CMD_NAME} Error occurred, {err}, {getErrorMessage()}')
+        return False  
+    return True
 
 
 def create_back_cube(w, d, h):
@@ -279,7 +294,6 @@ def createOnramp():
     circleDim = rampSketch.sketchDimensions.addDiameterDimension(circle1, adsk.core.Point3D.create(1.2, 1.2, 0)) 
     # get ModelParameter
     modelPrm: adsk.fusion.ModelParameter = circleDim.parameter
-
     # Set user parameter name in ModelParameter
     modelPrm.expression = dotDiameter.name + "*2"
 
@@ -322,13 +336,6 @@ def drawPolyline(
     skt.isComputeDeferred = True
     [lines.addByTwoPoints(pnts[i], pnts[i + 1]) for i in range(count)]
     skt.isComputeDeferred = False
-
-# This event handler is called when the command needs to compute a new preview in the graphics window.
-def command_preview(args: adsk.core.CommandEventArgs):
-    # General logging for debug.
-    futil.log(f'{CMD_NAME} Command Preview Event')
-    inputs = args.command.commandInputs
-
 
 # This event handler is called when the user changes anything in the command dialog
 # allowing you to modify values of other inputs based on that change.
