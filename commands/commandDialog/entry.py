@@ -114,6 +114,9 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     default_value = adsk.core.ValueInput.createByString('30')
     inputs.addValueInput('height_value_input', 'Back Height', defaultLengthUnits, default_value)
 
+    # boolean input for whether to create the back and cut
+    inputs.addBoolValueInput('tools_only', 'Tools Only', True)
+
     # TODO Connect to the events that are needed by this command.
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
     futil.add_handler(args.command.inputChanged, command_input_changed, local_handlers=local_handlers)
@@ -130,6 +133,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
     inputs = args.command.commandInputs
     width_value_input: adsk.core.TextBoxCommandInput = inputs.itemById('width_value_input')
     height_value_input: adsk.core.ValueCommandInput = inputs.itemById('height_value_input')
+    tool_only_input = inputs.itemById('tools_only')
 
     backHeight = max(2.5, height_value_input.value)
     backWidth = max(width_value_input.value, distanceBetweenSlots)
@@ -144,12 +148,8 @@ def command_execute(args: adsk.core.CommandEventArgs):
     bodies = adsk.core.ObjectCollection.create()
     bodies.add(slot_tool)
 
-    # offset slightly on the X if we need an even number of slots
-    slotXShift =  0.0
-    if (slotCount % 2 == 0):
-      slotXShift = -distanceBetweenSlots/2
-    futil.log(f'Back Width: {backWidth}\n Slot count: {slotCount} \n slotCount % 2: {slotCount % 2} \n Slot X Shift: {slotXShift}')
-
+    # offset to the edge location, because symmetrical patterns aren't working correctly in the API
+    slotXShift = (distanceBetweenSlots * ( 1 - slotCount))/2
  
     vector = adsk.core.Vector3D.create(slotXShift, backThickness - 0.5, backHeight - 1.3)
     transform = adsk.core.Matrix3D.create()
@@ -161,29 +161,28 @@ def command_execute(args: adsk.core.CommandEventArgs):
     moveFeats.add(moveFeatureInput)
 
     #  Make more slots
-    patternCollection = adsk.core.ObjectCollection.create()
-    patternCollection.add(slot_tool)
     rectangularPatterns = features.rectangularPatternFeatures
     patternInput = rectangularPatterns.createInput(
-        patternCollection, 
+        bodies, 
         root.xConstructionAxis,
         adsk.core.ValueInput.createByReal(slotCount),
         adsk.core.ValueInput.createByReal(distanceBetweenSlots), 
         adsk.fusion.PatternDistanceType.SpacingPatternDistanceType)
-    patternInput.isSymmetricInDirectionOne = True
-    rectangularPattern = rectangularPatterns.add(patternInput)
+
+    slotPattern = rectangularPatterns.add(patternInput)
+    slotBodies = adsk.core.ObjectCollection.create()
+    for body in slotPattern.bodies:
+            slotBodies.add(body)
 
 
-
-    if computeCut:
+    if not tool_only_input.value:
     # Make the overall shape
         back = create_back_cube(backWidth, backThickness, backHeight)
 
         # Subtract the slot tool
         combineFeatures = features.combineFeatures
-        tools = adsk.core.ObjectCollection.create()
-        tools.add(slot_tool)
-        input: adsk.fusion.CombineFeatureInput = combineFeatures.createInput(back, tools)
+
+        input: adsk.fusion.CombineFeatureInput = combineFeatures.createInput(back, slotBodies)
         input.isNewComponent = False
         input.isKeepToolBodies = False
         input.operation = adsk.fusion.FeatureOperations.CutFeatureOperation
