@@ -1,0 +1,14 @@
+{
+	"autodeskProduct":	"Fusion",
+	"type":	"addin",
+	"id":	"7140f78a-a5c8-4f46-b5ca-4a546d0a3d93",
+	"author":	"Kelly Maguire",
+	"description":	{
+		"":	""
+	},
+	"version":	"0.1",
+	"runOnStartup":	true,
+	"supportedOS":	"windows|mac",
+	"editEnabled":	true,
+	"iconFilename":	"AddInIcon.svg"
+}
