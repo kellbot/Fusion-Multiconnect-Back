@@ -1,4 +1,4 @@
-import adsk.core
+import adsk.core, traceback
 import os
 from ...lib import fusionAddInUtils as futil
 from ... import config
@@ -104,6 +104,13 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
     inputs = args.command.commandInputs
 
+    # Center point selection tool
+    selectionInput = inputs.addSelectionInput('center_point_input', 'Center', 'The front center of the connector')
+    selectionInput.setSelectionLimits(1, 1)
+    selectionInput.addSelectionFilter('SketchPoints')
+    selectionInput.addSelectionFilter('ConstructionPoints')
+    selectionInput.addSelectionFilter('Vertices')
+
     # Create a value input field for the width
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
     default_value = adsk.core.ValueInput.createByString('40')
@@ -142,14 +149,13 @@ def generate_multiconnect_back(args: adsk.core.CommandEventArgs):
         inputs = args.command.commandInputs
         width_value_input: adsk.core.TextBoxCommandInput = inputs.itemById('width_value_input')
         height_value_input: adsk.core.ValueCommandInput = inputs.itemById('height_value_input')
-        tool_only_input = inputs.itemById('tools_only')
+        tool_only_input: adsk.core.BoolValueCommandInput = inputs.itemById('tools_only')
+        center_point_input: adsk.core.SelectionCommandInput = inputs.itemById('center_point_input')
 
         backHeight = max(2.5, height_value_input.value)
         backWidth = max(width_value_input.value, distanceBetweenSlots)
         slotCount = math.floor(backWidth/distanceBetweenSlots)
         backThickness = 0.65
-
-
 
         slot_tool = create_slot(backHeight)
         
@@ -160,7 +166,12 @@ def generate_multiconnect_back(args: adsk.core.CommandEventArgs):
         # offset to the edge location, because symmetrical patterns aren't working correctly in the API
         slotXShift = (distanceBetweenSlots * ( 1 - slotCount))/2
     
-        vector = adsk.core.Vector3D.create(slotXShift, backThickness - 0.5, backHeight - 1.3)
+        # don't forget to add in our selected point
+        selectedEntity = center_point_input.selection(0).entity
+        targetPoint = selectedEntity.worldGeometry if  selectedEntity.objectType == adsk.fusion.SketchPoint.classType() else selectedEntity.geometry
+        futil.log(f'{CMD_NAME} Target Point: ({targetPoint.x},{targetPoint.y},{targetPoint.z})')
+
+        vector = adsk.core.Vector3D.create(slotXShift + targetPoint.x, backThickness - 0.5 + targetPoint.y, backHeight - 1.3 + targetPoint.z)
         transform = adsk.core.Matrix3D.create()
         transform.translation = vector
 
@@ -186,7 +197,7 @@ def generate_multiconnect_back(args: adsk.core.CommandEventArgs):
 
         if not tool_only_input.value:
         # Make the overall shape
-            back = create_back_cube(backWidth, backThickness, backHeight)
+            back = create_back_cube(backWidth, backThickness, backHeight, targetPoint)
 
             # Subtract the slot tool
             combineFeatures = features.combineFeatures
@@ -198,18 +209,18 @@ def generate_multiconnect_back(args: adsk.core.CommandEventArgs):
             combineFeature = combineFeatures.add(input)
     except Exception as err:
         args.executeFailed = True
-        args.executeFailedMessage = getErrorMessage()
-        futil.log(f'{CMD_NAME} Error occurred, {err}, {getErrorMessage()}')
+        stackTrace = traceback.format_exc()
+        futil.log(f'{CMD_NAME} Error occurred, {err}, {stackTrace}')
         return False  
     return True
 
 
-def create_back_cube(w, d, h):
+def create_back_cube(w, d, h, backEdgePoint):
     sketch = root.sketches.add(root.xYConstructionPlane)
     sketch.name = "Back Profile"
 
-    centerPoint = adsk.core.Point3D.create(0,d/2,0)
-    sketch.sketchCurves.sketchLines.addCenterPointRectangle(centerPoint, adsk.core.Point3D.create(w/2,d, 0))    
+    centerPoint = adsk.core.Point3D.create(0 + backEdgePoint.x,backEdgePoint.y + d/2,0 + backEdgePoint.z)
+    sketch.sketchCurves.sketchLines.addCenterPointRectangle(centerPoint, adsk.core.Point3D.create(w/2 + backEdgePoint.x , backEdgePoint.y + d, 0 + backEdgePoint.z))    
 
     profile = sketch.profiles.item(0)
     distance = adsk.core.ValueInput.createByReal(h)
