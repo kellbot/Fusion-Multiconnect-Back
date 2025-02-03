@@ -5,24 +5,8 @@ from ... import config
 import math
 app = adsk.core.Application.get()
 ui = app.userInterface
-design = adsk.fusion.Design.cast(app.activeProduct)
-root = design.rootComponent
-features = root.features
-
-# We will create and use some user parameters
-userParams = design.userParameters
 
 
-# Create a new user parameter if it doesn't exist
-paramName = "DotRadius"
-paramValue = 1.015  # Default value
-paramUnit = "cm"  # Supports 'mm', 'cm', 'in', etc.
-
-existingParam = userParams.itemByName(paramName)
-if existingParam is None:
-    userParams.add(paramName, adsk.core.ValueInput.createByReal(paramValue), paramUnit, "Radius of the connector dot")
-
-dotDiameter = userParams.itemByName(paramName)
 
 # TODO move these into the command dialog
 onRampEveryXSlots = 1
@@ -58,6 +42,7 @@ local_handlers = []
 
 # Executed when add-in is run.
 def start():
+
     # Create a command Definition.
     cmd_def = ui.commandDefinitions.addButtonDefinition(CMD_ID, CMD_NAME, CMD_Description, ICON_FOLDER)
 
@@ -138,6 +123,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
     generate_multiconnect_back(args)
 
 def command_preview(args: adsk.core.CommandEventArgs):
+
     futil.log(f'{CMD_NAME} Command Preview Event')
     args.isValidResult = generate_multiconnect_back(args)
 
@@ -145,6 +131,25 @@ def command_preview(args: adsk.core.CommandEventArgs):
 
 def generate_multiconnect_back(args: adsk.core.CommandEventArgs):
     try:
+        design = adsk.fusion.Design.cast(app.activeProduct)
+        root = design.rootComponent
+        features = root.features
+        
+        # We will create and use some user parameters
+        userParams = design.userParameters
+
+
+        # Create a new user parameter if it doesn't exist
+        paramName = "DotRadius"
+        paramValue = 1.015  # Default value
+        paramUnit = "cm"  # Supports 'mm', 'cm', 'in', etc.
+
+        existingParam = userParams.itemByName(paramName)
+        if existingParam is None:
+            userParams.add(paramName, adsk.core.ValueInput.createByReal(paramValue), paramUnit, "Radius of the connector dot")
+
+        dotDiameter = userParams.itemByName(paramName)
+
         # Get a reference to your command's inputs.
         inputs = args.command.commandInputs
         width_value_input: adsk.core.TextBoxCommandInput = inputs.itemById('width_value_input')
@@ -216,6 +221,12 @@ def generate_multiconnect_back(args: adsk.core.CommandEventArgs):
 
 
 def create_back_cube(w, d, h, backEdgePoint):
+    design = adsk.fusion.Design.cast(app.activeProduct)
+    root = design.rootComponent
+    features = root.features
+
+    dotDiameter = design.userParameters.itemByName('DotRadius')
+
     sketch = root.sketches.add(root.xYConstructionPlane)
     sketch.name = "Back Profile"
 
@@ -233,6 +244,11 @@ def create_back_cube(w, d, h, backEdgePoint):
 
 
 def create_slot(backHeight):
+    design = adsk.fusion.Design.cast(app.activeProduct)
+    root = design.rootComponent
+    features = root.features
+
+    dotDiameter = design.userParameters.itemByName('DotRadius')
 
     slotSketch = root.sketches.add(root.xYConstructionPlane)
     slotSketch.name = "Slot Profile"
@@ -296,6 +312,13 @@ def create_slot(backHeight):
     return body1
 
 def createOnramp():
+    design = adsk.fusion.Design.cast(app.activeProduct)
+    root = design.rootComponent
+    features = root.features
+
+    dotDiameter = design.userParameters.itemByName('DotRadius')
+
+
     # Create the sketch for the cylinder
     rampSketch = root.sketches.add(root.xZConstructionPlane)
     rampSketch.name = "Ramp Sketch"
@@ -316,6 +339,12 @@ def createOnramp():
     return rampExtrude
 
 def createDimple():
+    design = adsk.fusion.Design.cast(app.activeProduct)
+    root = design.rootComponent
+    features = root.features
+
+    dotDiameter = design.userParameters.itemByName('DotRadius')
+
     dimpleSketch = root.sketches.add(root.yZConstructionPlane)
     dimpleSketch.name = "Dimple sketch"
 
