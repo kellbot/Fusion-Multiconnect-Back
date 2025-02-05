@@ -275,12 +275,15 @@ def create_slot(backHeight):
     revolveInput.setAngleExtent(False, adsk.core.ValueInput.createByReal(3.14159265359 * 0.5))
 
     # Execute the revolve
-    revolveFeats.add(revolveInput)
+    dot = revolveFeats.add(revolveInput)
 
     # Extrude the slot length
     extrudes = features.extrudeFeatures
     distance = adsk.core.ValueInput.createByReal(backHeight * -1)
-    extrude1 = extrudes.addSimple(slotProfile, distance, adsk.fusion.FeatureOperations.JoinFeatureOperation)        
+    extInput = extrudes.createInput(slotProfile, adsk.fusion.FeatureOperations.JoinFeatureOperation)
+    extInput.setDistanceExtent(False, distance)
+    extInput.participantBodies = [dot.bodies.item(0)]
+    extrude1 = extrudes.add(extInput)      
     # Get the extrusion body
     body1 = extrude1.bodies.item(0)
     body1.name = "Slot"
