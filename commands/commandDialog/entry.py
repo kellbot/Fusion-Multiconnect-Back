@@ -176,7 +176,7 @@ def generate_multiconnect_back(args: adsk.core.CommandEventArgs):
         targetPoint = selectedEntity.worldGeometry if  selectedEntity.objectType == adsk.fusion.SketchPoint.classType() else selectedEntity.geometry
         futil.log(f'{CMD_NAME} Target Point: ({targetPoint.x},{targetPoint.y},{targetPoint.z})')
 
-        vector = adsk.core.Vector3D.create(slotXShift + targetPoint.x, backThickness - 0.5 + targetPoint.y, backHeight - 1.3 + targetPoint.z)
+        vector = adsk.core.Vector3D.create(slotXShift + targetPoint.x, backThickness - 0.42 + targetPoint.y, backHeight - 1.3 + targetPoint.z)
         transform = adsk.core.Matrix3D.create()
         transform.translation = vector
 
@@ -253,7 +253,7 @@ def create_slot(backHeight):
     slotSketch = root.sketches.add(root.xYConstructionPlane)
     slotSketch.name = "Slot Profile"
 
-    profilePoints = [adsk.core.Point3D.create(x, y, 0) for x, y in [[0,0],[dotDiameter.value,0],[dotDiameter.value,0.12121],[0.765,0.3712],[0.765,0.5],[0,0.5]]]
+    profilePoints = [adsk.core.Point3D.create(x, y, 0) for x, y in [[0,0],[dotDiameter.value,0],[dotDiameter.value,0.12121],[0.765,0.3712],[0.765,0.42],[0,0.42]]]
 
     drawPolyline(slotSketch, profilePoints)
 
@@ -374,7 +374,10 @@ def drawPolyline(
     lines = skt.sketchCurves.sketchLines
 
     skt.isComputeDeferred = True
-    [lines.addByTwoPoints(pnts[i], pnts[i + 1]) for i in range(count)]
+    for i in range(count):
+        newline = lines.addByTwoPoints(pnts[i], pnts[i + 1])
+        skt.sketchDimensions.addDistanceDimension(newline.startSketchPoint, newline.endSketchPoint, adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation, adsk.core.Point3D.create(5.5, -1, 0))
+
     skt.isComputeDeferred = False
 
 # This event handler is called when the user changes anything in the command dialog
