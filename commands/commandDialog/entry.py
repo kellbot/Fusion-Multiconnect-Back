@@ -182,7 +182,12 @@ def generate_multiconnect_back(args: adsk.core.CommandEventArgs):
 
         moveFeats = features.moveFeatures
         moveFeatureInput = moveFeats.createInput2(bodies)
-        moveFeatureInput.defineAsFreeMove(transform)
+        moveFeatureInput.defineAsTranslateXYZ(
+            adsk.core.ValueInput.createByString(f'{slotXShift + targetPoint.x} cm'), 
+            adsk.core.ValueInput.createByString(f'{backThickness - 0.42 + targetPoint.y} cm'), 
+            adsk.core.ValueInput.createByString(f'{height_value_input.expression} - {1.3 + targetPoint.z} cm'),
+            False)
+        
         moveFeats.add(moveFeatureInput)
 
         #  Make more slots
@@ -202,7 +207,7 @@ def generate_multiconnect_back(args: adsk.core.CommandEventArgs):
 
         if not tool_only_input.value:
         # Make the overall shape
-            back = create_back_cube(backWidth, backThickness, backHeight, targetPoint)
+            back = create_back_cube(backWidth, backThickness, height_value_input.expression, targetPoint)
 
             # Subtract the slot tool
             combineFeatures = features.combineFeatures
@@ -220,7 +225,7 @@ def generate_multiconnect_back(args: adsk.core.CommandEventArgs):
     return True
 
 
-def create_back_cube(w, d, h, backEdgePoint):
+def create_back_cube(w, d, heightExpression: str, backEdgePoint):
     design = adsk.fusion.Design.cast(app.activeProduct)
     root = design.rootComponent
     features = root.features
@@ -234,7 +239,7 @@ def create_back_cube(w, d, h, backEdgePoint):
     sketch.sketchCurves.sketchLines.addCenterPointRectangle(centerPoint, adsk.core.Point3D.create(w/2 + backEdgePoint.x , backEdgePoint.y + d, 0 + backEdgePoint.z))    
 
     profile = sketch.profiles.item(0)
-    distance = adsk.core.ValueInput.createByReal(h)
+    distance = adsk.core.ValueInput.createByString(heightExpression)
     cubeExtrude = features.extrudeFeatures.addSimple(profile, distance, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
 
     backBody = cubeExtrude.bodies.item(0)
