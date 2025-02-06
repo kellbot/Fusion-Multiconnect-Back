@@ -29,8 +29,8 @@ IS_PROMOTED = True
 # command it will be inserted beside. Not providing the command to position it
 # will insert it at the end.
 WORKSPACE_ID = 'FusionSolidEnvironment'
-PANEL_ID = 'SolidScriptsAddinsPanel'
-COMMAND_BESIDE_ID = 'ScriptsManagerCommand'
+PANEL_ID = 'SolidCreatePanel'
+COMMAND_BESIDE_ID = 'SolidCreatePanelCreateBox'
 
 # Resource location for command icons, here we assume a sub folder in this directory named "resources".
 ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources', '')
@@ -95,7 +95,14 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     selectionInput.addSelectionFilter('SketchPoints')
     selectionInput.addSelectionFilter('ConstructionPoints')
     selectionInput.addSelectionFilter('Vertices')
-
+     
+    # Plane orientation selection tool
+    planeInput = inputs.addSelectionInput('plane_input', 'Plane', 'The plane to create the back on')
+    planeInput.setSelectionLimits(1, 1)
+    planeInput.addSelectionFilter('ConstructionPlanes')
+    planeInput.addSelectionFilter('PlanarFaces')
+    planeInput.addSelectionFilter('Profiles')
+    
     # Create a value input field for the width
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
     default_value = adsk.core.ValueInput.createByString('40')
@@ -174,7 +181,6 @@ def generate_multiconnect_back(args: adsk.core.CommandEventArgs):
         # don't forget to add in our selected point
         selectedEntity = center_point_input.selection(0).entity
         targetPoint = selectedEntity.worldGeometry if  selectedEntity.objectType == adsk.fusion.SketchPoint.classType() else selectedEntity.geometry
-        futil.log(f'{CMD_NAME} Target Point: ({targetPoint.x},{targetPoint.y},{targetPoint.z})')
 
         vector = adsk.core.Vector3D.create(slotXShift + targetPoint.x, backThickness - 0.42 + targetPoint.y, backHeight - 1.3 + targetPoint.z)
         transform = adsk.core.Matrix3D.create()
@@ -199,15 +205,38 @@ def generate_multiconnect_back(args: adsk.core.CommandEventArgs):
             adsk.core.ValueInput.createByReal(distanceBetweenSlots), 
             adsk.fusion.PatternDistanceType.SpacingPatternDistanceType)
 
+        patternInput.quantityTwo = adsk.core.ValueInput.createByReal(1)
+
         slotPattern = rectangularPatterns.add(patternInput)
         slotBodies = adsk.core.ObjectCollection.create()
         for body in slotPattern.bodies:
                 slotBodies.add(body)
 
+        # Use the selected plane to position the tool(s)
+        plane_input: adsk.core.SelectionCommandInput = inputs.itemById('plane_input')
+        selectedEntity = plane_input.selection(0).entity
+        targetPlane = selectedEntity.geometry
+        
+        # get the angle between targetPlane and the XZ plane
+        angle = targetPlane.normal.angleTo(root.xZConstructionPlane.geometry.normal)
+
+        # rotate the slot tool(s)
+        rotationAxis = root.zConstructionAxis
+        rotationFeatureInput = moveFeats.createInput2(slotBodies)
+        rotationFeatureInput.defineAsRotate(rotationAxis, adsk.core.ValueInput.createByReal(angle))
+        moveFeats.add(rotationFeatureInput)
+
 
         if not tool_only_input.value:
         # Make the overall shape
-            back = create_back_cube(backWidth, backThickness, height_value_input.expression, targetPoint)
+            back: adsk.core.BRepBody = create_back_cube(backWidth, backThickness, height_value_input.expression, targetPoint)
+            backCollection = adsk.core.ObjectCollection.create()
+            backCollection.add(back)
+
+            # Rotate the back
+            backRotationInput = moveFeats.createInput2(backCollection)
+            backRotationInput.defineAsRotate(rotationAxis, adsk.core.ValueInput.createByReal(angle))
+            moveFeats.add(backRotationInput)
 
             # Subtract the slot tool
             combineFeatures = features.combineFeatures

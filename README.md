@@ -9,9 +9,10 @@ Go to Utilites > Multiconnect Back Generator and enter the desired dimensions. B
 
 ### Options
 * Center: this poorly named selector is a point which will be at the center bottom on the face (smooth side) of the generated connector
+* Plane: This is the plane along which the slots and back will be generated. It must be vertical or things won't work correctly
 * Width: the overall width of the connector. Wide connectors will have multiple slots
 * Height: the overall height of the connector. Tall connectors will have multiple "on ramps"
 * Tool only: will only generate positives of the "slots", will not generate back
 
-## Known bugs
-For some reason the rectangular pattern feature creates dupilicate slots. These all get consumed when you cut them out of the back, but if you opt for "tools only" you'll end up with surplus objects.
+## Known bugs and limitations
+The plane must be aligned on the Z axis for it to work.
