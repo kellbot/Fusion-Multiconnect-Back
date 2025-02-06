@@ -116,6 +116,9 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     # boolean input for whether to create the back and cut
     inputs.addBoolValueInput('tools_only', 'Tools Only', True)
 
+    # Flip button
+    inputs.addBoolValueInput('flip', 'Flip', False, ICON_FOLDER + 'Flip', True)
+
     # TODO Connect to the events that are needed by this command.
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
     futil.add_handler(args.command.inputChanged, command_input_changed, local_handlers=local_handlers)
@@ -163,6 +166,7 @@ def generate_multiconnect_back(args: adsk.core.CommandEventArgs):
         height_value_input: adsk.core.ValueCommandInput = inputs.itemById('height_value_input')
         tool_only_input: adsk.core.BoolValueCommandInput = inputs.itemById('tools_only')
         center_point_input: adsk.core.SelectionCommandInput = inputs.itemById('center_point_input')
+        flip_input: adsk.core.BoolValueCommandInput = inputs.itemById('flip')
 
         backHeight = max(2.5, height_value_input.value)
         backWidth = max(width_value_input.value, distanceBetweenSlots)
@@ -218,7 +222,8 @@ def generate_multiconnect_back(args: adsk.core.CommandEventArgs):
         targetPlane = selectedEntity.geometry
         
         # get the angle between targetPlane and the XZ plane
-        angle = f'180 deg - {targetPlane.normal.angleTo(root.xZConstructionPlane.geometry.normal)} rad'
+        base_angle = '180 deg' if flip_input.value else '360 deg'
+        angle = f'{base_angle} - {targetPlane.normal.angleTo(root.xZConstructionPlane.geometry.normal)} rad'
 
         # rotate the slot tool(s)
         rotationAxis = root.zConstructionAxis
