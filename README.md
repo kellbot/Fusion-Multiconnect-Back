@@ -5,7 +5,7 @@ I created this simple tool to quickly create Multiconnect backs in Fusion. This 
 Download the source code and [install it manually](https://www.autodesk.com/support/technical/article/caas/sfdcarticles/sfdcarticles/How-to-install-an-ADD-IN-and-Script-in-Fusion-360.html) as an Add In
 
 ## Use
-Go to Utilites > Multiconnect Back Generator and enter the desired dimensions. By default, it will create a new object for the back and cut out slots in it. If you would prefer to create the slots and cut them out of an existing object click "tools only"
+Go to Create > Multiconnect Back Generator and enter the desired dimensions. By default, it will create a new object for the back and cut out slots in it. If you would prefer to create the slots and cut them out of an existing object click "tools only"
 
 ### Options
 * Center: this poorly named selector is a point which will be at the center bottom on the face (smooth side) of the generated connector
@@ -15,4 +15,5 @@ Go to Utilites > Multiconnect Back Generator and enter the desired dimensions. B
 * Tool only: will only generate positives of the "slots", will not generate back
 
 ## Known bugs and limitations
-The plane must be aligned on the Z axis for it to work.
+* The plane must be aligned on the Z axis for it to work.
+* It probably doesn't play well inside components where the origin is in a different location than the root origin

@@ -179,8 +179,8 @@ def generate_multiconnect_back(args: adsk.core.CommandEventArgs):
         slotXShift = (distanceBetweenSlots * ( 1 - slotCount))/2
     
         # don't forget to add in our selected point
-        selectedEntity = center_point_input.selection(0).entity
-        targetPoint = selectedEntity.worldGeometry if  selectedEntity.objectType == adsk.fusion.SketchPoint.classType() else selectedEntity.geometry
+        targetPointEntity = center_point_input.selection(0).entity
+        targetPoint = targetPointEntity.worldGeometry if  targetPointEntity.objectType == adsk.fusion.SketchPoint.classType() else targetPointEntity.geometry
 
         vector = adsk.core.Vector3D.create(slotXShift + targetPoint.x, backThickness - 0.42 + targetPoint.y, backHeight - 1.3 + targetPoint.z)
         transform = adsk.core.Matrix3D.create()
@@ -189,9 +189,9 @@ def generate_multiconnect_back(args: adsk.core.CommandEventArgs):
         moveFeats = features.moveFeatures
         moveFeatureInput = moveFeats.createInput2(bodies)
         moveFeatureInput.defineAsTranslateXYZ(
-            adsk.core.ValueInput.createByString(f'{slotXShift + targetPoint.x} cm'), 
-            adsk.core.ValueInput.createByString(f'{backThickness - 0.42 + targetPoint.y} cm'), 
-            adsk.core.ValueInput.createByString(f'{height_value_input.expression} - {1.3 + targetPoint.z} cm'),
+            adsk.core.ValueInput.createByString(f'{slotXShift} cm'), 
+            adsk.core.ValueInput.createByString(f'{backThickness - 0.42} cm'), 
+            adsk.core.ValueInput.createByString(f'{height_value_input.expression} - 1.3 cm'),
             False)
         
         moveFeats.add(moveFeatureInput)
@@ -218,25 +218,37 @@ def generate_multiconnect_back(args: adsk.core.CommandEventArgs):
         targetPlane = selectedEntity.geometry
         
         # get the angle between targetPlane and the XZ plane
-        angle = targetPlane.normal.angleTo(root.xZConstructionPlane.geometry.normal)
+        angle = f'180 deg - {targetPlane.normal.angleTo(root.xZConstructionPlane.geometry.normal)} rad'
 
         # rotate the slot tool(s)
         rotationAxis = root.zConstructionAxis
+
         rotationFeatureInput = moveFeats.createInput2(slotBodies)
-        rotationFeatureInput.defineAsRotate(rotationAxis, adsk.core.ValueInput.createByReal(angle))
+        rotationFeatureInput.defineAsRotate(rotationAxis, adsk.core.ValueInput.createByString(angle))
         moveFeats.add(rotationFeatureInput)
+
+        # move everything to the target point
+        slotMoveInput = moveFeats.createInput2(slotBodies)
+        slotMoveInput.defineAsPointToPoint(root.originConstructionPoint, targetPointEntity)
+        
+        moveFeats.add(slotMoveInput)
 
 
         if not tool_only_input.value:
         # Make the overall shape
-            back: adsk.core.BRepBody = create_back_cube(backWidth, backThickness, height_value_input.expression, targetPoint)
+            back: adsk.core.BRepBody = create_back_cube(backWidth, backThickness, height_value_input.expression)
             backCollection = adsk.core.ObjectCollection.create()
             backCollection.add(back)
 
             # Rotate the back
             backRotationInput = moveFeats.createInput2(backCollection)
-            backRotationInput.defineAsRotate(rotationAxis, adsk.core.ValueInput.createByReal(angle))
+            backRotationInput.defineAsRotate(rotationAxis, adsk.core.ValueInput.createByString(angle))
             moveFeats.add(backRotationInput)
+
+            # Move the back to the target point
+            backMoveInput = moveFeats.createInput2(backCollection)
+            backMoveInput.defineAsPointToPoint(root.originConstructionPoint, targetPointEntity)
+            moveFeats.add(backMoveInput)
 
             # Subtract the slot tool
             combineFeatures = features.combineFeatures
@@ -254,7 +266,7 @@ def generate_multiconnect_back(args: adsk.core.CommandEventArgs):
     return True
 
 
-def create_back_cube(w, d, heightExpression: str, backEdgePoint):
+def create_back_cube(w, d, heightExpression: str):
     design = adsk.fusion.Design.cast(app.activeProduct)
     root = design.rootComponent
     features = root.features
@@ -264,8 +276,8 @@ def create_back_cube(w, d, heightExpression: str, backEdgePoint):
     sketch = root.sketches.add(root.xYConstructionPlane)
     sketch.name = "Back Profile"
 
-    centerPoint = adsk.core.Point3D.create(0 + backEdgePoint.x,backEdgePoint.y + d/2,0 + backEdgePoint.z)
-    sketch.sketchCurves.sketchLines.addCenterPointRectangle(centerPoint, adsk.core.Point3D.create(w/2 + backEdgePoint.x , backEdgePoint.y + d, 0 + backEdgePoint.z))    
+    centerPoint = adsk.core.Point3D.create(0, d/2,0 )
+    sketch.sketchCurves.sketchLines.addCenterPointRectangle(centerPoint, adsk.core.Point3D.create(w/2 , d, 0 ))    
 
     profile = sketch.profiles.item(0)
     distance = adsk.core.ValueInput.createByString(heightExpression)
@@ -436,19 +448,27 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
     inputs = args.inputs
     
     # Verify the validity of the input values. This controls if the OK button is enabled or not.
-    valueInput = inputs.itemById('width_value_input')
-    if valueInput.value >= 0:
+    width_value_input = inputs.itemById('width_value_input')
+    if width_value_input.value >= 0:
         args.areInputsValid = True
     else:
         args.areInputsValid = False
         
        
-    valueInput = inputs.itemById('height_value_input')
-    if valueInput.value >= 0:
+    height_value_input = inputs.itemById('height_value_input')
+    if height_value_input.value >= 0:
         args.areInputsValid = True
     else:
         args.areInputsValid = False
-        
+
+    # The selected plane must be aligned with the Z axis but I don't actually know how to check for that
+    # plane_value_input = inputs.itemById('plane_input')
+    # selectedEntity = plane_value_input.selection(0).entity
+    # if selectedEntity.isParallelToLine(root.zConstructionAxis):
+    #     args.areInputsValid = True
+    # else:
+    #     args.areInputsValid = False
+
 
 # This event handler is called when the command terminates.
 def command_destroy(args: adsk.core.CommandEventArgs):
