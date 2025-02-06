@@ -130,12 +130,19 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
 # This event handler is called when the user clicks the OK button in the command dialog or 
 # is immediately called after the created event not command inputs were created for the dialog.
 def command_execute(args: adsk.core.CommandEventArgs):
+    
     generate_multiconnect_back(args)
-
 def command_preview(args: adsk.core.CommandEventArgs):
 
     futil.log(f'{CMD_NAME} Command Preview Event')
+    design = adsk.fusion.Design.cast(app.activeProduct)
+    timelineStartIndex = design.timeline.markerPosition
     args.isValidResult = generate_multiconnect_back(args)
+    
+    timelineEndIndx = design.timeline.markerPosition
+    futil.log(f'{CMD_NAME} Timeline start: {timelineStartIndex}, end: {timelineEndIndx}')
+    group = design.timeline.timelineGroups.add(timelineStartIndex, timelineEndIndx -1)
+    group.name = "Multiconnect Back"
 
 
 
